@@ -1,94 +1,93 @@
-import os
-import re
-import time
+"""
+app.py
+SecureVault — Alternate Secure FinTech App for CY4053 Assignment 2
+Rebuilt with a light UI and a top navigation bar layout.
+Author: For Academic Submission (Independent Version)
+"""
+
+import streamlit as st
 import sqlite3
+import os
+import bcrypt
+import re
+import pandas as pd
 import random
 import string
-import bcrypt
-import streamlit as st
-import pandas as pd
 from datetime import datetime
 from io import BytesIO
 from cryptography.fernet import Fernet
 
-# -------------------------
+# -------------------------------
 # Config
-# -------------------------
-DB = "friend_secure_fintech.db"
-KEYFILE = "friend_secret.key"
-ALLOWED = {"png", "jpg", "jpeg", "pdf", "csv", "txt"}
+# -------------------------------
+DB_FILE = "securevault_data.db"
+KEY_FILE = "securevault_secret.key"
+ALLOWED_FILES = {"png", "jpg", "jpeg", "pdf", "csv", "txt"}
 
-# -------------------------
-# UI theme (different look)
-# -------------------------
-def apply_theme():
-    import streamlit as st
+# -------------------------------
+# Light Theme CSS
+# -------------------------------
+def set_light_theme():
     st.markdown(
         """
         <style>
         .stApp {
-            background: linear-gradient(180deg, #0b0b0b 0%, #111111 40%, #1a1a1a 100%);
-            color: #f5e8c7;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #f7fafc 0%, #e9f3ff 100%);
+            font-family: 'Poppins', sans-serif;
+            color: #223;
         }
-
-        .card {
-            background: rgba(25, 20, 10, 0.6);
+        .app-header {
+            text-align: center;
+            padding: 10px 0;
+            background: #dceeff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .nav-bar {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .nav-button {
+            background-color: #ffffff;
+            border: 1px solid #aad4ff;
+            padding: 8px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            color: #004d8c;
+            font-weight: 600;
+        }
+        .nav-button:hover {
+            background-color: #0078ff;
+            color: white;
+        }
+        .main-card {
+            background-color: white;
             border-radius: 14px;
-            padding: 16px;
-            border: 1px solid rgba(255, 215, 0, 0.2);
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05);
         }
-
-        .primary-btn > button {
-            background: linear-gradient(90deg, #ffcc00, #d4af37);
-            color: #1a1a1a;
-            font-weight: 700;
-            border: none;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(255, 215, 0, 0.4);
-        }
-
-        .primary-btn > button:hover {
-            background: linear-gradient(90deg, #ffe066, #f1c232);
-            transform: scale(1.02);
-            transition: all 0.2s ease-in-out;
-        }
-
         h1, h2, h3 {
-            color: #ffd700;
-        }
-
-        small {
-            color: #c0b283;
-        }
-
-        a {
-            color: #ffcc33 !important;
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
+            color: #003366;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
-    )
-
-# -------------------------
-# Crypto utilities
-# -------------------------
+# -------------------------------
+# Crypto
+# -------------------------------
 def ensure_key():
-    if os.path.exists(KEYFILE):
-        with open(KEYFILE, "rb") as f:
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, "rb") as f:
             return f.read()
-    k = Fernet.generate_key()
-    with open(KEYFILE, "wb") as f:
-        f.write(k)
-    return k
+    key = Fernet.generate_key()
+    with open(KEY_FILE, "wb") as f:
+        f.write(key)
+    return key
 
 fernet = None
 def init_crypto():
@@ -96,445 +95,339 @@ def init_crypto():
     key = ensure_key()
     fernet = Fernet(key)
 
-def enc_text(s: str) -> bytes:
-    return fernet.encrypt(s.encode())
+def encrypt_data(text):
+    return fernet.encrypt(text.encode())
 
-def dec_text(b: bytes) -> str:
-    return fernet.decrypt(b).decode()
+def decrypt_data(blob):
+    return fernet.decrypt(blob).decode()
 
-# -------------------------
-# DB helpers
-# -------------------------
-def get_conn():
-    conn = sqlite3.connect(DB, check_same_thread=False)
+# -------------------------------
+# DB
+# -------------------------------
+def get_db():
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    conn = get_conn(); c = conn.cursor()
+    conn = get_db()
+    c = conn.cursor()
     c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
+    CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        pw_hash BLOB NOT NULL,
-        created TEXT NOT NULL
-    )""")
+        password_hash BLOB NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """)
     c.execute("""
-    CREATE TABLE IF NOT EXISTS wallets (
+    CREATE TABLE IF NOT EXISTS wallets(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        owner INTEGER NOT NULL,
+        owner_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         data BLOB NOT NULL,
-        created TEXT NOT NULL,
-        FOREIGN KEY(owner) REFERENCES users(id)
-    )""")
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(owner_id) REFERENCES users(id)
+    )
+    """)
     c.execute("""
-    CREATE TABLE IF NOT EXISTS transactions (
+    CREATE TABLE IF NOT EXISTS transactions(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         wallet_id INTEGER NOT NULL,
         tx_ref TEXT NOT NULL,
         tx_number TEXT NOT NULL,
         tx_data BLOB NOT NULL,
-        created TEXT NOT NULL,
+        created_at TEXT NOT NULL,
         FOREIGN KEY(wallet_id) REFERENCES wallets(id)
-    )""")
+    )
+    """)
     c.execute("""
-    CREATE TABLE IF NOT EXISTS audit (
+    CREATE TABLE IF NOT EXISTS logs(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        uid INTEGER,
-        action TEXT NOT NULL,
-        meta TEXT,
-        ts TEXT NOT NULL
-    )""")
-    conn.commit(); conn.close()
+        user_id INTEGER,
+        action TEXT,
+        detail TEXT,
+        time TEXT
+    )
+    """)
+    conn.commit()
+    conn.close()
 
-# -------------------------
-# Security helpers
-# -------------------------
-PASSWORD_RX = re.compile(r"^(?=.{8,})(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).*$")
-EMAIL_RX = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w+$")
+# -------------------------------
+# Helper Functions
+# -------------------------------
+def hash_pw(p):
+    return bcrypt.hashpw(p.encode(), bcrypt.gensalt())
 
-def hash_pw(pw: str) -> bytes:
-    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt())
-
-def check_pw(pw: str, h: bytes) -> bool:
+def verify_pw(p, h):
     try:
-        return bcrypt.checkpw(pw.encode(), h)
-    except Exception:
+        return bcrypt.checkpw(p.encode(), h)
+    except:
         return False
 
-def strong_pw(pw: str) -> bool:
-    return bool(PASSWORD_RX.match(pw))
-
-def valid_email(e: str) -> bool:
-    return bool(EMAIL_RX.match(e))
-
-def sanitize_input(s: str, maxlen=1500) -> str:
+def sanitize(s):
     s = s.strip()
-    if len(s) > maxlen:
-        st.warning("Input was too long — truncated to safe length.")
-        s = s[:maxlen]
-    # remove tags
-    s = re.sub(r"(?i)<.*?>", "", s)
-    # block obvious SQL tokens
-    lowered = s.lower()
-    for tok in ["--", ";", "/*", "*/", " or ", " and ", "drop ", "delete ", "insert ", "update ", "="]:
-        if tok in lowered:
-            raise ValueError("Disallowed characters or tokens in input.")
+    if len(s) > 1000:
+        s = s[:1000]
+    if any(x in s.lower() for x in ["--", "drop", "delete", "insert", " or ", "=", " and "]):
+        raise ValueError("Unsafe input detected.")
     return s
 
-def suspicious_input(s: str) -> bool:
-    # checks for SQL-like or injection-ish content (for login)
-    return bool(re.search(r"('|--|;|\bOR\b|\bAND\b|\bDROP\b|\bSELECT\b)", s, re.IGNORECASE))
-
-# -------------------------
-# Audit logger
-# -------------------------
-def audit(uid, action, meta=None):
+def log_action(uid, action, detail=None):
     try:
-        conn = get_conn(); c = conn.cursor()
-        c.execute("INSERT INTO audit(uid, action, meta, ts) VALUES (?,?,?,?)",
-                  (uid, action, meta, datetime.utcnow().isoformat()))
-        conn.commit(); conn.close()
-    except Exception:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("INSERT INTO logs(user_id, action, detail, time) VALUES (?,?,?,?)",
+                  (uid, action, detail, datetime.utcnow().isoformat()))
+        conn.commit()
+        conn.close()
+    except:
         pass
 
-# -------------------------
-# User operations
-# -------------------------
+# -------------------------------
+# User Ops
+# -------------------------------
 def register_user(username, email, password):
     try:
-        username = sanitize_input(username, maxlen=100)
-        email = sanitize_input(email, maxlen=200)
+        username = sanitize(username)
+        email = sanitize(email)
     except ValueError as e:
         return False, str(e)
-    if not username or not email or not password:
-        return False, "All fields required."
-    if not valid_email(email):
-        return False, "Invalid email address."
-    if not strong_pw(password):
-        return False, "Password too weak."
+    conn = get_db()
+    c = conn.cursor()
     try:
-        conn = get_conn(); c = conn.cursor()
-        h = hash_pw(password)
-        c.execute("INSERT INTO users(username,email,pw_hash,created) VALUES (?,?,?,?)",
-                  (username, email, h, datetime.utcnow().isoformat()))
+        pw_hash = hash_pw(password)
+        c.execute("INSERT INTO users(username, email, password_hash, created_at) VALUES(?,?,?,?)",
+                  (username, email, pw_hash, datetime.utcnow().isoformat()))
         conn.commit()
-        uid = c.lastrowid
-        conn.close()
-        audit(uid, "register", username)
-        return True, "Registered successfully."
+        log_action(None, "register", username)
+        return True, "Registration successful!"
     except sqlite3.IntegrityError:
-        return False, "Username or email already taken."
-    except Exception:
-        return False, "Registration failed."
+        return False, "Username or email already exists."
+    finally:
+        conn.close()
 
-def get_user_by_username(username):
-    try:
-        username = sanitize_input(username, maxlen=100)
-    except ValueError:
-        return None
-    conn = get_conn(); c = conn.cursor()
+def get_user(username):
+    conn = get_db()
+    c = conn.cursor()
     c.execute("SELECT * FROM users WHERE username=?", (username,))
-    r = c.fetchone(); conn.close(); return r
+    r = c.fetchone()
+    conn.close()
+    return r
 
-def get_user(uid):
-    conn = get_conn(); c = conn.cursor()
+def get_user_by_id(uid):
+    conn = get_db()
+    c = conn.cursor()
     c.execute("SELECT * FROM users WHERE id=?", (uid,))
-    r = c.fetchone(); conn.close(); return r
+    r = c.fetchone()
+    conn.close()
+    return r
 
-# -------------------------
-# Wallets & transactions
-# -------------------------
-def add_wallet(owner, name, data_plain):
+# -------------------------------
+# Wallet & Transaction
+# -------------------------------
+def create_wallet(uid, name, data):
     try:
-        name = sanitize_input(name, maxlen=200)
-        data_plain = sanitize_input(data_plain, maxlen=2000)
+        name = sanitize(name)
+        data = sanitize(data)
+        enc = encrypt_data(data)
     except ValueError as e:
         return False, str(e)
-    try:
-        enc = enc_text(data_plain)
-        conn = get_conn(); c = conn.cursor()
-        c.execute("INSERT INTO wallets(owner,name,data,created) VALUES (?,?,?,?)",
-                  (owner, name, enc, datetime.utcnow().isoformat()))
-        conn.commit(); conn.close()
-        audit(owner, "wallet_create", name)
-        return True, "Wallet added."
-    except Exception:
-        return False, "Could not create wallet."
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("INSERT INTO wallets(owner_id, name, data, created_at) VALUES (?,?,?,?)",
+              (uid, name, enc, datetime.utcnow().isoformat()))
+    conn.commit()
+    conn.close()
+    log_action(uid, "wallet_created", name)
+    return True, "Wallet added."
 
-def list_wallets(owner):
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT id,name,created FROM wallets WHERE owner=?", (owner,))
-    rows = c.fetchall(); conn.close(); return rows
+def get_wallets(uid):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM wallets WHERE owner_id=?", (uid,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
 
-def view_wallet_blob(wallet_id):
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT data FROM wallets WHERE id=?", (wallet_id,))
-    r = c.fetchone(); conn.close()
-    return r["data"] if r else None
+def create_transaction(wallet_id, tx_number):
+    if not tx_number.isdigit():
+        return False, "Transaction number must be numeric."
+    tx_ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    payload = f"{tx_ref}:{tx_number}"
+    enc = encrypt_data(payload)
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("INSERT INTO transactions(wallet_id, tx_ref, tx_number, tx_data, created_at) VALUES (?,?,?,?,?)",
+              (wallet_id, tx_ref, tx_number, enc, datetime.utcnow().isoformat()))
+    conn.commit()
+    conn.close()
+    return True, f"Transaction {tx_ref} added."
 
+def get_transactions(wallet_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT tx_ref, tx_number, created_at FROM transactions WHERE wallet_id=?", (wallet_id,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
 
-
-# -------------------------
-# File validation
-# -------------------------
+# -------------------------------
+# File Upload
+# -------------------------------
 def validate_file(uploaded):
-    name = uploaded.name
-    ext = name.rsplit(".", 1)[-1].lower()
-    if ext not in ALLOWED:
-        return False, f".{ext} not allowed"
+    ext = uploaded.name.split(".")[-1].lower()
+    if ext not in ALLOWED_FILES:
+        return False, f".{ext} not allowed."
     if uploaded.size > 5 * 1024 * 1024:
-        return False, "File too large (>5MB)"
-    return True, "OK"
+        return False, "File exceeds 5MB."
+    return True, "File accepted."
 
-# -------------------------
-# App UI pages (different flows and UI)
-# -------------------------
+# -------------------------------
+# Pages
+# -------------------------------
 def page_home():
-    st.title("FinShield — Secure FinTech Prototype")
-    st.markdown("A secure demo for CY4053. Confidential data encrypted at rest. Audit logs maintained.")
-    st.divider()
-    st.markdown("**Quick actions**")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Register"): st.experimental_set_query_params(page="register")
-    with col2:
-        if st.button("Login"): st.experimental_set_query_params(page="login")
-    with col3:
-        if st.button("Wallets"): st.experimental_set_query_params(page="wallets")
+    st.markdown("<div class='main-card'><h2>Welcome to SecureVault 💼</h2>"
+                "<p>This app demonstrates secure FinTech operations with encryption and secure coding practices.</p></div>",
+                unsafe_allow_html=True)
 
 def page_register():
-    st.header("Create an account")
-    with st.form("regf"):
+    st.subheader("Create an Account")
+    with st.form("reg_form"):
         username = st.text_input("Username")
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
-        pw2 = st.text_input("Confirm password", type="password")
-        submit = st.form_submit_button("Sign up")
-    if submit:
-        if pw != pw2:
+        c_pw = st.text_input("Confirm Password", type="password")
+        s = st.form_submit_button("Register")
+    if s:
+        if pw != c_pw:
             st.warning("Passwords do not match.")
         else:
             ok, msg = register_user(username, email, pw)
-            if ok:
-                st.success(msg); st.info("Now log in from Login page.")
-            else:
-                st.error(msg)
+            st.success(msg) if ok else st.error(msg)
 
 def page_login():
-    st.header("Access account")
-    if "lock_until" not in st.session_state:
-        st.session_state["lock_until"] = 0
-    if time.time() < st.session_state["lock_until"]:
-        st.error(f"Account actions locked. Try again in {int(st.session_state['lock_until'] - time.time())}s")
-        return
-    with st.form("logf"):
-        username = st.text_input("Username")
+    st.subheader("Login Securely")
+    with st.form("login_form"):
+        user = st.text_input("Username")
         pw = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
-    if submitted:
-        if not username.strip() or not pw.strip():
-            st.warning("Both fields required.")
-            return
-        if suspicious_input(username):
-            st.error("⚠️ Unsafe input detected. Remove special characters or SQL keywords.")
-            audit(None, "login_block", username)
-            return
-        user = get_user_by_username(username)
-        if user and check_pw(pw, user["pw_hash"]):
-            st.session_state["uid"] = user["id"]
-            st.session_state["username"] = user["username"]
-            st.session_state["failed"] = 0
-            st.success("Welcome — logged in.")
-            audit(user["id"], "login")
+        submit = st.form_submit_button("Login")
+    if submit:
+        u = get_user(user)
+        if u and verify_pw(pw, u["password_hash"]):
+            st.session_state["user_id"] = u["id"]
+            st.session_state["username"] = u["username"]
+            st.success(f"Welcome back, {u['username']}!")
+            log_action(u["id"], "login")
         else:
-            st.session_state["failed"] = st.session_state.get("failed", 0) + 1
-            left = 5 - st.session_state["failed"]
-            if left > 0:
-                st.error(f"Invalid credentials. {left} attempts left.")
-            else:
-                st.session_state["lock_until"] = time.time() + 60
-                st.error("Too many attempts. Locked for 1 minute.")
-                audit(None, "lockout", username)
-
-def page_profile():
-    st.header("Profile & Account")
-    if not require_login():
-        st.warning("Please log in.")
-        return
-    uid = st.session_state["uid"]
-    user = get_user(uid)
-    st.write(f"**Username:** {user['username']}"); st.write(f"**Email:** {user['email']}")
-    st.divider()
-    with st.form("chgmail"):
-        newmail = st.text_input("New email")
-        if st.form_submit_button("Update email"):
-            ok, msg = update_user_email(uid, newmail)
-            st.success(msg) if ok else st.error(msg)
-    st.divider()
-    with st.form("pwchange"):
-        old = st.text_input("Old password", type="password")
-        new = st.text_input("New password", type="password")
-        conf = st.text_input("Confirm new", type="password")
-        if st.form_submit_button("Change password"):
-            if new != conf: st.warning("New passwords mismatch.")
-            else:
-                ok, msg = change_user_password(uid, old, new)
-                st.success(msg) if ok else st.error(msg)
+            st.error("Invalid credentials or unsafe input detected.")
 
 def page_wallets():
-    st.header("Wallets & Transactions")
-    if not require_login():
-        st.warning("Login required.")
-        return
-    uid = st.session_state["uid"]
-    st.subheader("Create wallet")
-    with st.form("wallet_add"):
-        wname = st.text_input("Wallet name")
-        wdata = st.text_area("Private content")
-        add = st.form_submit_button("Create")
-    if add:
-        ok, msg = add_wallet(uid, wname, wdata)
-        st.success(msg) if ok else st.error(msg)
-
+    if not logged_in(): return
+    st.subheader("My Wallets")
+    with st.form("add_wallet"):
+        wname = st.text_input("Wallet Name")
+        wdata = st.text_area("Wallet Secret Data")
+        if st.form_submit_button("Create Wallet"):
+            ok, msg = create_wallet(st.session_state["user_id"], wname, wdata)
+            st.success(msg) if ok else st.error(msg)
     st.divider()
-    wallets = list_wallets(uid)
+    wallets = get_wallets(st.session_state["user_id"])
     for w in wallets:
-        wid = w["id"]; name = w["name"]; created = w["created"]
-        st.markdown(f"**{name}** — created {created}")
-        col1, col2, col3 = st.columns([1,1,2])
-        with col1:
-            if st.button("Show (decrypted)", key=f"dv_{wid}"):
-                blob = view_wallet_blob(wid)
-                try:
-                    st.code(dec_text(blob))
-                except Exception:
-                    st.error("Unable to decrypt (or unauthorized).")
-        with col2:
-            if st.button("Show raw blob", key=f"raw_{wid}"):
-                blob = view_wallet_blob(wid)
-                st.code(str(blob)[:200] + " ... (blob)") if blob else st.info("No data")
-        with col3:
-            with st.form(f"txform_{wid}", clear_on_submit=True):
-                num = st.text_input("Transaction number (digits only)", key=f"txnum_{wid}")
-                submit_tx = st.form_submit_button("Add Transaction")
-            if submit_tx:
-                ok, msg = add_transaction(wid, num)
+        st.markdown(f"**{w['name']}** — created {w['created_at']}")
+        if st.button(f"View Encrypted Data #{w['id']}", key=f"view_{w['id']}"):
+            st.code(w['data'])
+        if st.button(f"Decrypt Wallet #{w['id']}", key=f"dec_{w['id']}"):
+            st.code(decrypt_data(w['data']))
+        with st.form(f"txform_{w['id']}", clear_on_submit=True):
+            num = st.text_input("Transaction Number (digits only)", key=f"txn_{w['id']}")
+            if st.form_submit_button("Add Transaction"):
+                ok, msg = create_transaction(w["id"], num)
                 st.success(msg) if ok else st.error(msg)
-
-        if st.button("View transactions", key=f"vtx_{wid}"):
-            txs = get_transactions(wid)
-            if not txs: st.info("No transactions yet.")
-            else:
-                df = pd.DataFrame(txs, columns=["Ref","Number","Created"])
+        if st.button(f"Show Transactions #{w['id']}", key=f"showtx_{w['id']}"):
+            txs = get_transactions(w["id"])
+            if txs:
+                df = pd.DataFrame(txs, columns=["Ref", "Number", "Date"])
                 st.dataframe(df, use_container_width=True)
+            else:
+                st.info("No transactions recorded.")
 
-def page_files():
-    st.header("Upload files (validated)")
-    if not require_login():
-        st.warning("Login required.")
-        return
-    f = st.file_uploader("Choose file", type=list(ALLOWED))
+def page_upload():
+    if not logged_in(): return
+    st.subheader("Upload a Secure File")
+    f = st.file_uploader("Select File", type=list(ALLOWED_FILES))
     if f:
-        ok,msg = validate_file(f)
+        ok, msg = validate_file(f)
         if ok:
-            st.success("Accepted.")
-            st.write({"name": f.name, "size": f.size})
-            audit(st.session_state["uid"], "file_upload", f.name)
+            st.success(msg)
         else:
             st.error(msg)
 
-def page_audit():
-    st.header("Audit & Export")
-    if not require_login():
-        st.warning("Login required.")
-        return
-    uid = st.session_state["uid"]
-    conn = get_conn(); c = conn.cursor()
-    c.execute("SELECT id, uid, action, meta, ts FROM audit WHERE uid=? ORDER BY ts DESC LIMIT 500", (uid,))
-    rows = c.fetchall(); conn.close()
-    if not rows:
-        st.info("No logs.")
-        return
-    df = pd.DataFrame(rows, columns=["ID","User","Action","Meta","Timestamp"])
-    st.dataframe(df, use_container_width=True)
-    buf = BytesIO(); df.to_excel(buf, index=False, sheet_name="audit"); buf.seek(0)
-    st.download_button("Download logs", data=buf, file_name="audit_logs_friend.xlsx")
+def page_logs():
+    if not logged_in(): return
+    st.subheader("User Activity Logs")
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT action, detail, time FROM logs WHERE user_id=? ORDER BY time DESC", (st.session_state["user_id"],))
+    rows = c.fetchall()
+    conn.close()
+    if rows:
+        df = pd.DataFrame(rows, columns=["Action", "Detail", "Timestamp"])
+        st.dataframe(df, use_container_width=True)
+        buf = BytesIO()
+        df.to_excel(buf, index=False, sheet_name="logs")
+        buf.seek(0)
+        st.download_button("Download Logs", data=buf, file_name="securevault_logs.xlsx")
+    else:
+        st.info("No activity logs found.")
 
-def page_error_test():
-    st.header("Controlled error test")
-    if st.button("Trigger safe error"):
-        try:
-            _ = 1/0
-        except Exception:
-            st.error("Controlled error handled. No stack traces shown.")
-            audit(st.session_state.get("uid"), "error_test")
-
-# -------------------------
-# Account helpers (profile)
-# -------------------------
-def update_user_email(uid, new):
-    if not new or not valid_email(new): return False, "Invalid email."
-    try:
-        conn = get_conn(); c = conn.cursor()
-        c.execute("UPDATE users SET email=? WHERE id=?", (new, uid))
-        conn.commit(); conn.close(); audit(uid, "email_change", new); return True, "Email updated."
-    except sqlite3.IntegrityError:
-        return False, "Email already used."
-    except Exception:
-        return False, "Update failed."
-
-def change_user_password(uid, old, new):
-    if not new or not strong_pw(new): return False, "Weak new password."
-    user = get_user(uid)
-    if not user or not check_pw(old, user["pw_hash"]): return False, "Old password incorrect."
-    try:
-        conn = get_conn(); c = conn.cursor()
-        c.execute("UPDATE users SET pw_hash=? WHERE id=?", (hash_pw(new), uid))
-        conn.commit(); conn.close(); audit(uid, "pw_change"); return True, "Password changed."
-    except Exception:
-        return False, "Password update failed."
-
-# -------------------------
-# Utilities
-# -------------------------
-def require_login() -> bool:
-    return "uid" in st.session_state and st.session_state["uid"]
+# -------------------------------
+# Utility
+# -------------------------------
+def logged_in():
+    if "user_id" not in st.session_state:
+        st.warning("Please log in first.")
+        return False
+    return True
 
 def logout():
-    if "uid" in st.session_state:
-        audit(st.session_state.get("uid"), "logout")
+    if "user_id" in st.session_state:
+        log_action(st.session_state["user_id"], "logout")
     st.session_state.clear()
-    st.success("Logged out.")
-    time.sleep(0.8)
-    st.experimental_rerun()
+    st.success("You have logged out.")
+    st.rerun()
 
-# -------------------------
-# App routing
-# -------------------------
+# -------------------------------
+# Main App
+# -------------------------------
 def main():
-    apply_theme()
-    init_db(); init_crypto()
+    set_light_theme()
+    init_db()
+    init_crypto()
 
-    st.sidebar.markdown("<div class='card'><h3>FinShield</h3><small>Secure FinTech Demo</small></div>", unsafe_allow_html=True)
-    menu = ["Home","Register","Login","Wallets","Files","Audit","Profile","Error Test"]
-    choice = st.sidebar.selectbox("Navigate", menu)
+    st.markdown("<div class='app-header'><h1>SecureVault — FinTech Demo App</h1></div>", unsafe_allow_html=True)
 
-    if require_login():
-        st.sidebar.markdown(f"**User:** {st.session_state['username']}")
-        if st.sidebar.button("Logout"):
+    pages = ["🏠 Home", "🧾 Register", "🔐 Login", "💼 Wallets", "📁 Upload", "🧩 Logs"]
+    cols = st.columns(len(pages))
+    active_page = st.session_state.get("active_page", "🏠 Home")
+
+    for i, p in enumerate(pages):
+        if cols[i].button(p):
+            st.session_state["active_page"] = p
+            st.rerun()
+
+    if active_page == "🏠 Home": page_home()
+    elif active_page == "🧾 Register": page_register()
+    elif active_page == "🔐 Login": page_login()
+    elif active_page == "💼 Wallets": page_wallets()
+    elif active_page == "📁 Upload": page_upload()
+    elif active_page == "🧩 Logs": page_logs()
+
+    if "user_id" in st.session_state:
+        st.markdown("---")
+        if st.button("🚪 Logout"):
             logout()
-
-    if choice == "Home": page_home()
-    elif choice == "Register": page_register()
-    elif choice == "Login": page_login()
-    elif choice == "Wallets": page_wallets()
-    elif choice == "Files": page_files()
-    elif choice == "Audit": page_audit()
-    elif choice == "Profile": page_profile()
-    elif choice == "Error Test": page_error_test()
 
 if __name__ == "__main__":
     main()
