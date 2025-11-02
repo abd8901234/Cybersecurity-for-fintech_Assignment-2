@@ -42,10 +42,7 @@ The app ensures data confidentiality, integrity, and controlled access through *
 - **Audit Logs**
   - Tracks all key user actions (login, logout, wallet creation, etc.)
   - Downloadable in Excel format
-- **Error Handling Test**
-  - Controlled divide-by-zero exception with safe message
-- **Export Test Cases**
-  - Exports template Excel file for manual security testing documentation
+  
 
 ---
 
