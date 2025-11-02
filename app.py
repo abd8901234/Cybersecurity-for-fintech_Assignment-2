@@ -22,25 +22,60 @@ ALLOWED = {"png", "jpg", "jpeg", "pdf", "csv", "txt"}
 # UI theme (different look)
 # -------------------------
 def apply_theme():
+    import streamlit as st
     st.markdown(
         """
         <style>
         .stApp {
-            background: linear-gradient(180deg,#0f1724 0%, #0b1220 40%, #071029 100%);
-            color: #e6f7ff;
+            background: linear-gradient(180deg, #0b0b0b 0%, #111111 40%, #1a1a1a 100%);
+            color: #f5e8c7;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         }
+
         .card {
-            background: rgba(20,30,40,0.55);
-            border-radius: 14px; padding: 16px;
-            border: 1px solid rgba(120,200,255,0.06);
-            box-shadow: 0 6px 18px rgba(3,10,22,0.6);
+            background: rgba(25, 20, 10, 0.6);
+            border-radius: 14px;
+            padding: 16px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
         }
-        .primary-btn>button { background: linear-gradient(90deg,#7ef3ff,#6aa6ff); color:#026; font-weight:700; }
-        h1, h2, h3 { color: #dffbff; }
-        small { color: #a6cfe3; }
+
+        .primary-btn > button {
+            background: linear-gradient(90deg, #ffcc00, #d4af37);
+            color: #1a1a1a;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(255, 215, 0, 0.4);
+        }
+
+        .primary-btn > button:hover {
+            background: linear-gradient(90deg, #ffe066, #f1c232);
+            transform: scale(1.02);
+            transition: all 0.2s ease-in-out;
+        }
+
+        h1, h2, h3 {
+            color: #ffd700;
+        }
+
+        small {
+            color: #c0b283;
+        }
+
+        a {
+            color: #ffcc33 !important;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
         </style>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True
+    )
+
     )
 
 # -------------------------
