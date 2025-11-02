@@ -36,7 +36,7 @@ def apply_theme():
             border: 1px solid rgba(120,200,255,0.06);
             box-shadow: 0 6px 18px rgba(3,10,22,0.6);
         }
-        .primary-btn>button { background: linear-gradient(90deg,#7ef3ff,#6aa6ff); color:#022; font-weight:700; }
+        .primary-btn>button { background: linear-gradient(90deg,#7ef3ff,#6aa6ff); color:#026; font-weight:700; }
         h1, h2, h3 { color: #dffbff; }
         small { color: #a6cfe3; }
         </style>
