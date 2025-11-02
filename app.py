@@ -204,7 +204,7 @@ def validate_file(uploaded):
 # App Pages
 # ---------------------------
 def page_home():
-    st.markdown("<div class='app-card'><h2>Welcome to SecurePay</h2><p>A light-themed secure FinTech prototype.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div class='app-card'><h2>Welcome to SecurePay</h2><p>Welcome to SecurePay.</p></div>", unsafe_allow_html=True)
 
 def page_signup():
     st.subheader("Create Account")
