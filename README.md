@@ -1,5 +1,5 @@
 # Cybersecurity-for-fintech_Assignment-2
-# 🔐 CY4053 – Assignment 2: Secure FinTech APP 
+# 🔐 CY4053 – Assignment 2: Secure FinTech App
 ### Name: **ABDULLAH NAWAZ**
 ### Roll No: **22I9840**
 ### Course: **Cybersecurity for FinTech**
